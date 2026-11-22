@@ -1,0 +1,1 @@
+Thực hành tấn công Clickjacking trên ví điện tử NovaPay và phòng thủ bằng Security Headers (X-Frame-Options, CSP frame-ancestors).

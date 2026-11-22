@@ -1,0 +1,75 @@
+================================================================================
+          LABTAINER: THỰC HÀNH TẤN CÔNG VÀ PHÒNG THỦ CLICKJACKING
+================================================================================
+
+Chào mừng bạn đến với bài lab Clickjacking (UI Redressing) trên ví điện tử NovaPay!
+
+[MÔI TRƯỜNG THỰC HÀNH]
+- Container victim   (IP 172.25.0.2): Chạy ví điện tử NovaPay tại http://victim:5000
+- Container attacker (IP 172.25.0.3): Chạy web mồi khuyến mãi tại http://attacker:8000
+- Tài khoản mẫu nạn nhân: nan_nhan / 123456 (số dư ban đầu: 50.000.000 đ)
+
+--------------------------------------------------------------------------------
+HƯỚNG DẪN 6 NHIỆM VỤ (TASKS)
+--------------------------------------------------------------------------------
+
+TASK 1: Khám phá ứng dụng ví điện tử NovaPay
+- Trên giao diện máy trạm (hoặc terminal victim), mở trình duyệt Firefox:
+    firefox http://victim:5000
+- Đăng nhập bằng tài khoản: nan_nhan / 123456
+- Quan sát trang tổng quan tài khoản (số dư, lịch sử giao dịch).
+- Bấm vào mục "Chuyển tiền" (http://victim:5000/transfer) và xác định nút
+  "Xác nhận chuyển tiền" là mục tiêu nhạy cảm cần tấn công.
+
+TASK 2: Kiểm tra các Header bảo mật chống nhúng khung
+- Trên terminal của container "attacker", thực hiện kiểm tra phản hồi HTTP:
+    curl -I http://victim:5000/transfer
+- Quan sát các header trả về và nhận thấy ứng dụng hoàn toàn THIẾU các cơ chế
+  bảo vệ chống đóng khung như "X-Frame-Options" và "Content-Security-Policy: frame-ancestors".
+
+TASK 3: Kiểm chứng khả năng nhúng iframe (Proof-of-Concept)
+- Trên container attacker, tạo file ~/www/test.html nhúng trang transfer:
+    echo '<iframe src="http://victim:5000/transfer" width="800" height="600"></iframe>' > ~/www/test.html
+- Mở trình duyệt truy cập http://attacker:8000/test.html và xác nhận trang NovaPay
+  được hiển thị đầy đủ bên trong trang của kẻ tấn công mà không bị chặn.
+
+TASK 4: Hoàn thiện trang web mồi Clickjacking
+- Mở file ~/www/index.html trên container attacker.
+- Tìm đến khối định nghĩa CSS cho "#victim-iframe" (đã có sẵn các dòng chú thích TODO):
+  1. Thêm thuộc tính làm trong suốt hoàn toàn cho iframe:
+       opacity: 0;
+  2. Sử dụng position: absolute; z-index: 999;
+  3. Căn chỉnh tọa độ top và left sao cho nút "Xác nhận chuyển tiền" của iframe
+     NovaPay nằm đè chính xác 100% lên nút "🎁 NHẬN QUÀ NGAY" của trang mồi.
+
+TASK 5: Thực hiện tấn công Clickjacking
+- Đảm bảo nạn nhân vẫn đang đăng nhập NovaPay trên Firefox.
+- Mở tab mới truy cập vào trang mồi:
+    http://attacker:8000/
+- Đóng vai nạn nhân, bấm vào nút "🎁 NHẬN QUÀ NGAY".
+- Quay lại tab NovaPay (http://victim:5000/dashboard) tải lại trang:
+  Xác nhận số dư đã bị trừ 5.000.000 đ và xuất hiện giao dịch chuyển tiền trái phép
+  đến "attacker_wallet"!
+
+TASK 6: Phòng thủ và vá lỗ hổng
+- Trên container victim, mở file ứng dụng ví điện tử:
+    nano ~/novapay/app.py
+- Tìm khối "[TASK 6: VÁ LỖ HỔNG CLICKJACKING - BỎ COMMENT 2 DÒNG DƯỚI ĐÂY]"
+  trong hàm send_standard_headers.
+- Bỏ comment 2 dòng header bảo vệ:
+    self.send_header('X-Frame-Options', 'DENY')
+    self.send_header('Content-Security-Policy', "frame-ancestors 'none'")
+- Lưu file (Ctrl+O, Enter, Ctrl+X).
+- Khởi động lại dịch vụ NovaPay bằng một trong hai cách sau:
+    Cách 1: Chạy script có sẵn:
+        ~/restart_novapay.sh
+    Cách 2: Chạy lệnh thủ công:
+        pkill -f app.py && cd ~/novapay && nohup python3 -u app.py > ~/novapay.log 2>&1 &
+- Trên container attacker, kiểm tra lại bằng curl:
+    curl -I http://victim:5000/transfer
+  (Xác nhận sự xuất hiện của header "X-Frame-Options: DENY")
+- Mở lại trang mồi http://attacker:8000/ và kiểm tra iframe đã bị trình duyệt chặn hoàn toàn!
+
+================================================================================
+Chúc các bạn thực hành thành công!
+================================================================================

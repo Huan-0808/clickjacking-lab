@@ -1,0 +1,1 @@
+clickjacking, iframe, x-frame-options, content-security-policy, flask, web-security
